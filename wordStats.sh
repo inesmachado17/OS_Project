@@ -6,6 +6,8 @@ which pdftotext
 MODO=$1;
 FILE=$2;
 LANG=$3;
+
+
 CONTENT="";
 
 if [ $# -ne 2 ] && [ $# -ne 3 ]; then
