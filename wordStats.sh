@@ -1,14 +1,16 @@
 #! /usr/bin/env bash
 
 # Verificar se o comando existe
-which pdftotext
+#which pdftotext
+if [[ -z "$(which pdftotext)" ]]; then
+    echo "[ERROR] pdftotext: command not found"
+    exit
+fi
 
-MODO=$1;
-FILE=$2;
-LANG=$3;
-
-
-CONTENT="";
+MODO=$1
+FILE=$2
+LANG=$3
+CONTENT=""
 
 if [ $# -ne 2 ] && [ $# -ne 3 ]; then
     echo "[ERROR] insufficient parameters"
@@ -32,13 +34,10 @@ elif [[ ! "$LANG" =~ ^(pt|en)$ ]]; then
 fi
 
 if [[ $(file "$FILE" | cut -d':' -f 2 | grep -i text) ]]; then
-CONTENT=$(cat $FILE)
+    CONTENT=$(cat $FILE)
 elif [[ $(file "$FILE" | cut -d':' -f 2 | grep -i pdf) ]]; then
-CONTENT=$(pdftotext $FILE)
+    CONTENT=$(pdftotext -nopgbrk $FILE -)
 else
-echo "o arquivo nao é text nem pdf"
+    echo "[ERROR] '$FILE' file type not supported"
 fi
-
-
-
-
+echo -e "$CONTENT"
