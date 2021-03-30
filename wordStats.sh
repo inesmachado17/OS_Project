@@ -49,11 +49,15 @@ fi
 # Verify file type, pdf or text, and converts pdf to text
 if [[ $(file "$FILE" | cut -d':' -f 2 | grep -i text) ]]; then
     CONTENT=$(cat $FILE)
+    echo "'$FILE': TEXT file"
 elif [[ $(file "$FILE" | cut -d':' -f 2 | grep -i pdf) ]]; then
     CONTENT=$(pdftotext -nopgbrk $FILE -) # -enc 'ASCII7'
+    echo "'$FILE': PDF file"
 else
     echo "[ERROR] '$FILE' file type not supported"
+    exit 1
 fi
+echo "[INFO] Processing '$FILE'"
 
 # Remove numbers, punctuation, symbols and empty lines
 # https://web.fe.up.pt/~ee96100/projecto/Tabela%20ascii.htm
@@ -72,6 +76,10 @@ if [[ "$MODO" =~ [cpt] ]]; then
     STOP_WORDS_CONTENT=$(echo "${STOP_WORDS_CONTENT::-1}")
 
     CONTENT=$(echo "$CONTENT" | grep -Evi "^($STOP_WORDS_CONTENT)$")
+    echo "StopWords file '$LANG_OPT': 'StopWords/$LANG_FILE' ($(wc -w $LANG_FILE | cut -d' ' -f1) words)"
+    echo "STOP WORDS will be filtered out"
+else
+    echo "STOP WORDS will be counted"
 fi
 
 # Sort and count ocurrencies on CONTENT
@@ -104,12 +112,56 @@ if [[ "$MODO" =~ [c|C] ]]; then
     echo $(wc -w $RESULT | cut -d' ' -f1) "distinct words"
 fi
 
-# if [[ "$MODO" =~ [p|P] ]]; then
+if [[ "$MODO" =~ [p|P] ]]; then
+    #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
+    RESULT="results---"${FILE::-3}"dat"
+    echo "$CONTENT" >>$RESULT
 
-# fi
+    if [[ $MODO == 'p' ]]; then
+        TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n('$LANG_OPT' stop words removed)"
+    else
+        TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n(without remove stop words)"
+    fi
 
-# if [[ "$MODO" =~ [t|T] ]]; then
+    gnuplot <<-EOF
+        set xlabel "words"
+        set ylabel "number of occurences"
+        set title "${TITLE}"
+        set term png
+        set output "teste.png"
+        set yrange[0:]
+        set xrange[0:7]
+        set xtics nomirror rotate by -45 scale 0
+        set boxwidth 0.5
+        set style fill solid 0.25
+        set xtics 1.0 border
+        plot "${RESULT}" using 1:xticlabels(2) with boxes title "# occurrences" lc rgb "green", \\
+            ''          using 0:1:1 with labels center offset 0,1 boxed notitle
+EOF
 
-# fi
+fi
 
-#echo "$CONTENT"
+if [[ "$MODO" =~ [t|T] ]]; then
+
+    if [ -z $WORD_STATS_TOP ]; then
+        echo "Environment variable 'WORD_STATS_TOP' is empty (using default 10)"
+        WORD_STATS_TOP=10
+    # !! https://stackoverflow.com/questions/806906/how-do-i-test-if-a-variable-is-a-number-in-bash
+    elif [[ $WORD_STATS_TOP =~ ^[1-9]+[0]*$ ]]; then
+        echo "WORD_STATS_TOP=$WORD_STATS_TOP"
+    else
+        echo "'$WORD_STATS_TOP' not a number (using default 10)"
+        WORD_STATS_TOP=10
+    fi
+
+    CONTENT=$(echo "$CONTENT" | head -n $WORD_STATS_TOP)
+
+    RESULT="results---"${FILE::-3}"txt"
+    # save content output on a file
+    echo "$CONTENT" >$RESULT
+    echo $(ls -l $RESULT)
+    echo "-------------------------------------"
+    echo "# TOP $WORD_STATS_TOP elements"
+    cat -n $RESULT
+    echo "-------------------------------------"
+fi
