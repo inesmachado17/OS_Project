@@ -41,7 +41,7 @@ fi
 if [[ "$MODO" =~ [cpt] && $LANG_OPT != 'en' ]]; then
     LANG_FILE=$LANG_OPT".stop_words.txt"
     if [ ! -f $LANG_FILE ]; then
-        echo "[ERROR] Can not find related stop wors file for selected language"
+        echo "[ERROR] Can not find related stop words file for selected language"
         exit 1
     fi
 fi
@@ -116,27 +116,28 @@ if [[ "$MODO" =~ [p|P] ]]; then
     #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
     RESULT="results---"${FILE::-3}"dat"
     echo "$CONTENT" >>$RESULT
-
+    
     if [[ $MODO == 'p' ]]; then
         TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n('$LANG_OPT' stop words removed)"
     else
-        TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n(without remove stop words)"
+        TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n('$LANG_OPT' stop words counted)"
     fi
 
-    gnuplot <<-EOF
+    gnuplot << EOF
         set xlabel "words"
         set ylabel "number of occurences"
         set title "${TITLE}"
-        set term png
+        set grid
+        set terminal png size 800,600
         set output "teste.png"
-        set yrange[0:]
-        set xrange[0:7]
+        set yrange[0:*]
         set xtics nomirror rotate by -45 scale 0
         set boxwidth 0.5
-        set style fill solid 0.25
-        set xtics 1.0 border
-        plot "${RESULT}" using 1:xticlabels(2) with boxes title "# occurrences" lc rgb "green", \\
-            ''          using 0:1:1 with labels center offset 0,1 boxed notitle
+        set style fill solid 1.0
+        set style textbox opaque
+        set xlabel "Authors: Estudante 01, Estudante 02\nCreated: xxx.xx.xxhxx:xx"
+        plot "teste.txt" using 0:1:xtic(2) with boxes title "# occurrences" lc rgb "orange", \\
+            ''          using 0:1:1 with labels center boxed notitle
 EOF
 
 fi
