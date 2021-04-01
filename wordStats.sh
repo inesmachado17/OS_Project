@@ -41,7 +41,7 @@ fi
 if [[ "$MODO" =~ [cpt] && $LANG_OPT != 'en' ]]; then
     LANG_FILE=$LANG_OPT".stop_words.txt"
     if [ ! -f $LANG_FILE ]; then
-        echo "[ERROR] Can not find related stop wors file for selected language"
+        echo "[ERROR] Can not find related stop words file for selected language"
         exit 1
     fi
 fi
@@ -71,7 +71,7 @@ CONTENT=$(echo "$CONTENT" | tr -s ' ' '\n')
 
 # Remove stop words
 if [[ "$MODO" =~ [cpt] ]]; then
-    STOP_WORDS_CONTENT=$(cat "$LANG_FILE" | xargs -n1)
+    STOP_WORDS_CONTENT=$(cat "$LANG_FILE" | xargs -0 -n1)
     STOP_WORDS_CONTENT=$(echo "$STOP_WORDS_CONTENT" | tr -s '\n' '|')
     STOP_WORDS_CONTENT=$(echo "${STOP_WORDS_CONTENT::-1}")
 
@@ -113,32 +113,45 @@ if [[ "$MODO" =~ [c|C] ]]; then
 fi
 
 if [[ "$MODO" =~ [p|P] ]]; then
+    if [ -z $WORD_STATS_TOP ]; then
+       WORD_STATS_TOP=10        
+    # !! https://stackoverflow.com/questions/806906/how-do-i-test-if-a-variable-is-a-number-in-bash
+    elif [[ $WORD_STATS_TOP =~ ^[1-9]+[0]*$ ]]; then
+        WORD_STATS_TOP=$WORD_STATS_TOP
+    fi
     #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
-    RESULT="results---"${FILE::-3}"dat"
-    echo "$CONTENT" >>$RESULT
-
+    RESULT="results---"${FILE::-4}
+    CONTENT=$(echo "$CONTENT" | head -n $WORD_STATS_TOP)
+    echo "$CONTENT">$RESULT".dat"
+    DATA=$(TZ=Europe/Lisbon date +'%Y.%m.%d-%Hh%M:%S')
+        
     if [[ $MODO == 'p' ]]; then
-        TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n('$LANG_OPT' stop words removed)"
+        TITLE="Top words for '$FILE'\nCreated: $DATA\n('$LANG_OPT' stop words removed)"
     else
-        TITLE="Top words for '$FILE'\nCreated: xxx.xx.xxhxx:xx\n(without remove stop words)"
+        TITLE="Top words for '$FILE'\nCreated: $DATA\n('$LANG_OPT' stop words counted)"
     fi
 
-    gnuplot <<-EOF
+    gnuplot << EOF
         set xlabel "words"
         set ylabel "number of occurences"
         set title "${TITLE}"
-        set term png
-        set output "teste.png"
-        set yrange[0:]
-        set xrange[0:7]
+        set grid
+        set terminal png size 800,600
+        set output "${RESULT}.png"
+        set yrange[0:*]
         set xtics nomirror rotate by -45 scale 0
         set boxwidth 0.5
-        set style fill solid 0.25
-        set xtics 1.0 border
-        plot "${RESULT}" using 1:xticlabels(2) with boxes title "# occurrences" lc rgb "green", \\
-            ''          using 0:1:1 with labels center offset 0,1 boxed notitle
+        set style fill solid 1.0
+        set style textbox opaque
+        plot "${RESULT}.dat" using 0:1:xtic(2) with boxes title "# occurrences" lc rgb "orange'0p+", \\
+            ''          using 0:1:1 with labels center boxed notitle
 EOF
 
+    html="<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"> <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Top Words</title></head><body> <h1>Top $WORD_STATS_TOP Words - '${FILE}' </h1> <img src=\"$RESULT.png\" alt=\"Top 10 words chart\"><p>Authors: Estudante 2200723, Estudante 2203845</p><p>Created: $DATA</p></body></html>"
+    echo $html>$RESULT".html"
+    echo $(ls -l $RESULT".dat")
+    echo $(ls -l $RESULT".png")
+    echo $(ls -l $RESULT".html")
 fi
 
 if [[ "$MODO" =~ [t|T] ]]; then
@@ -159,7 +172,7 @@ if [[ "$MODO" =~ [t|T] ]]; then
     RESULT="results---"${FILE::-3}"txt"
     # save content output on a file
     echo "$CONTENT" >$RESULT
-    echo $(ls -l $RESULT)
+    echo $(ls -l $RESULT)~12
     echo "-------------------------------------"
     echo "# TOP $WORD_STATS_TOP elements"
     cat -n $RESULT
