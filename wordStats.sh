@@ -1,180 +1,181 @@
 #! /usr/bin/env bash
 
-# Verify requirements
-# command pdftotext availability
+# Requirement check
+# Command pdftotext availability
 if [[ -z "$(which pdftotext)" ]]; then
     echo "[ERROR] pdftotext: command not found"
-    exit
+    exit 1
 fi
 
-LANG_FILE="en.stop_words.txt"
-LANG_OPT="en"
-MODO=$1
-FILE=$2
-CONTENT=""
+lang_file="en.stop_words.txt"
+lang_opt="en" #not mix with the global lang
+mode=$1
+file=$2
+content=""
 
 if [ $# -ne 2 ] && [ $# -ne 3 ]; then
     echo "[ERROR] insufficient parameters"
     echo "./word_stats.sh Cc|Pp|Tt INPUT [iso3166]"
     exit 1
-elif [[ ! "$MODO" =~ ^(c|C|p|P|t|T)$ ]]; then
-    echo "[ERROR] unknown command '$MODO'"
+elif [[ ! "$mode" =~ ^(c|C|p|P|t|T)$ ]]; then
+    echo "[ERROR] unknown command '$mode'"
     exit 1
-elif [[ ! -f "$FILE" ]]; then
-    echo "[ERROR] can't find file '$FILE'"
+elif [[ ! -f "$file" ]]; then
+    echo "[ERROR] can't find file '$file'"
     exit 1
 fi
 
-# Verify optional parameter (language)
+# Optional parameter (language) check
 # pt or en (only)
 if [[ $# -eq 3 ]]; then
-    LANG_OPT=$(echo $3 | tr "A-Z" "a-z")
+    lang_opt=$(echo $3 | tr "A-Z" "a-z")
 fi
-
-if [[ ! "$LANG_OPT" =~ ^(pt|en|es)$ ]]; then
-    echo "[ERROR] '$LANG_OPT' language not recognized"
+if [[ ! "$lang_opt" =~ ^(pt|en)$ ]]; then
+    echo "[ERROR] '$lang_opt' language not recognized"
     echo "Choose 'en' or 'pt'"
     exit 1
 fi
 
-# Verify if stop words file exists for chosen language
-if [[ "$MODO" =~ [cpt] && $LANG_OPT != 'en' ]]; then
-    LANG_FILE=$LANG_OPT".stop_words.txt"
-    if [ ! -f $LANG_FILE ]; then
+# Check if stop words file exists for chosen language
+if [[ "$mode" =~ [cpt] && $lang_opt != 'en' ]]; then
+    lang_file=$lang_opt".stop_words.txt"
+    if [ ! -f $lang_file ]; then
         echo "[ERROR] Can not find related stop words file for selected language"
         exit 1
     fi
 fi
 
-# Verify file type, pdf or text, and converts pdf to text
-if [[ $(file "$FILE" | cut -d':' -f 2 | grep -i text) ]]; then
-    CONTENT=$(cat $FILE)
-    echo "'$FILE': TEXT file"
-elif [[ $(file "$FILE" | cut -d':' -f 2 | grep -i pdf) ]]; then
-    CONTENT=$(pdftotext -nopgbrk $FILE -) # -enc 'ASCII7'
-    echo "'$FILE': PDF file"
+# Check file type
+# pdf to text conversion
+if [[ $(file "$file" | cut -d':' -f 2 | grep -i text) ]]; then
+    content=$(cat $file)
+    echo "'$file': TEXT file"
+elif [[ $(file "$file" | cut -d':' -f 2 | grep -i pdf) ]]; then
+    content=$(pdftotext -nopgbrk $file -)
+    echo "'$file': PDF file"
 else
-    echo "[ERROR] '$FILE' file type not supported"
+    echo "[ERROR] '$file' file type not supported"
     exit 1
 fi
-echo "[INFO] Processing '$FILE'"
+echo "[INFO] Processing '$file'"
 
 # Remove numbers, punctuation, symbols and empty lines
 # https://web.fe.up.pt/~ee96100/projecto/Tabela%20ascii.htm
-# !! TODO check ascii table
-CONTENT=$(echo "$CONTENT" | tr "[:digit:]" " ")
-CONTENT=$(echo "$CONTENT" | tr "[:punct:]" " ")
-CONTENT=$(echo "$CONTENT" | tr -c "[A-Za-zÇ-Üá-ÑÁ-Àã-ÃÊ-ÏÓ-Ý]" " ")
-CONTENT=$(echo "$CONTENT" | tr "[:upper:]" "[:lower:]")
-
-CONTENT=$(echo "$CONTENT" | tr -s ' ' '\n')
+# iconv //IGNORE garante que o file mantém UTF-8 depois do tr
+content=$(echo "$content" | tr "[:digit:]" " ")
+content=$(echo "$content" | tr "[:punct:]" " ")
+content=$(echo "$content" | tr -c "[A-Za-zÇ-Üá-ÑÁ-Àã-ÃÊ-ÏÓ-Ý]" " ")
+content=$(echo "$content" | tr "[:upper:]" "[:lower:]")
+content=$(echo "$content" | iconv -c -t UTF-8//IGNORE) #UTF-8 standardize
+content=$(echo "$content" | tr -s ' ' '\n')
 
 # Remove stop words
-if [[ "$MODO" =~ [cpt] ]]; then
-    STOP_WORDS_CONTENT=$(cat "$LANG_FILE" | xargs -0 -n1)
-    STOP_WORDS_CONTENT=$(echo "$STOP_WORDS_CONTENT" | tr -s '\n' '|')
-    STOP_WORDS_CONTENT=$(echo "${STOP_WORDS_CONTENT::-1}")
+if [[ "$mode" =~ [cpt] ]]; then
+    stop_words_content=$(cat "$lang_file" | xargs -0 -n1)
+    stop_words_content=$(echo "$stop_words_content" | tr -s '\n' '|')
+    stop_words_content=$(echo "${stop_words_content::-1}")
 
-    CONTENT=$(echo "$CONTENT" | grep -Evi "^($STOP_WORDS_CONTENT)$")
-    echo "StopWords file '$LANG_OPT': 'StopWords/$LANG_FILE' ($(wc -w $LANG_FILE | cut -d' ' -f1) words)"
+    content=$(echo "$content" | grep -Evi "^($stop_words_content)$")
+    echo "StopWords file '$lang_opt': 'StopWords/$lang_file' ($(wc -w $lang_file | cut -d' ' -f1) words)"
     echo "STOP WORDS will be filtered out"
 else
     echo "STOP WORDS will be counted"
 fi
 
-# Sort and count ocurrencies on CONTENT
-CONTENT=$(echo "$CONTENT" | sort | uniq -c | sort -nr)
+# Sort and count ocurrencies on content
+content=$(echo "$content" | sort | uniq -c | sort -nr)
 
 #
 # OUTPUTS
 #
 
-if [[ "$MODO" =~ [c|C] ]]; then
-    RESULT="results---"${FILE::-3}"txt"
+if [[ "$mode" =~ [c|C] ]]; then
+    result="results---"${file::-4}".txt"
 
     # save content output on a file
-    echo "$CONTENT" >$RESULT
+    echo "$content" >$result
 
     echo "COUNT MODE"
-    head $RESULT
+    head $result
 
-    LINES=$(wc -l $RESULT | cut -d' ' -f1)
+    lines=$(wc -l $result | cut -d' ' -f1)
 
-    if [[ $LINES -gt 10 ]]; then
+    if [[ $lines -gt 10 ]]; then
         echo "(...)"
     else
         echo ""
     fi
 
-    echo "RESULTS: '$RESULT'"
-    echo $(ls -l $RESULT)
+    echo "RESULTS: '$result'"
+    echo $(ls -l $result)
 
-    echo $(wc -w $RESULT | cut -d' ' -f1) "distinct words"
+    echo $(wc -w $result | cut -d' ' -f1) "distinct words"
 fi
 
-if [[ "$MODO" =~ [p|P] ]]; then
-    if [ -z $WORD_STATS_TOP ]; then
-       WORD_STATS_TOP=10        
+if [[ "$mode" =~ [p|P] ]]; then
+    if [ -z $word_stats_top ]; then
+       word_stats_top=10        
     # !! https://stackoverflow.com/questions/806906/how-do-i-test-if-a-variable-is-a-number-in-bash
-    elif [[ $WORD_STATS_TOP =~ ^[1-9]+[0]*$ ]]; then
-        WORD_STATS_TOP=$WORD_STATS_TOP
+    elif [[ $word_stats_top =~ ^[1-9]+[0]*$ ]]; then
+        word_stats_top=$word_stats_top
     fi
     #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
-    RESULT="results---"${FILE::-4}
-    CONTENT=$(echo "$CONTENT" | head -n $WORD_STATS_TOP)
-    echo "$CONTENT">$RESULT".dat"
-    DATA=$(TZ=Europe/Lisbon date +'%Y.%m.%d-%Hh%M:%S')
+    result="results---"${file::-4}
+    content=$(echo "$content" | head -n $word_stats_top)
+    echo "$content">$result".dat"
+    date=$(TZ=Europe/Lisbon date +'%Y.%m.%d-%Hh%M:%S')
         
-    if [[ $MODO == 'p' ]]; then
-        TITLE="Top words for '$FILE'\nCreated: $DATA\n('$LANG_OPT' stop words removed)"
+    if [[ $mode == 'p' ]]; then
+        title="Top words for '$file'\nCreated: $date\n('$lang_opt' stop words removed)"
     else
-        TITLE="Top words for '$FILE'\nCreated: $DATA\n('$LANG_OPT' stop words counted)"
+        title="Top words for '$file'\nCreated: $date\n('$lang_opt' stop words counted)"
     fi
 
     gnuplot << EOF
         set xlabel "words"
         set ylabel "number of occurences"
-        set title "${TITLE}"
+        set title "${title}"
         set grid
         set terminal png size 800,600
-        set output "${RESULT}.png"
+        set output "${result}.png"
         set yrange[0:*]
         set xtics nomirror rotate by -45 scale 0
         set boxwidth 0.5
         set style fill solid 1.0
         set style textbox opaque
-        plot "${RESULT}.dat" using 0:1:xtic(2) with boxes title "# occurrences" lc rgb "orange'0p+", \\
+        plot "${result}.dat" using 0:1:xtic(2) with boxes title "# occurrences" lc rgb "orange'0p+", \\
             ''          using 0:1:1 with labels center boxed notitle
 EOF
 
-    html="<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"> <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Top Words</title></head><body> <h1>Top $WORD_STATS_TOP Words - '${FILE}' </h1> <img src=\"$RESULT.png\" alt=\"Top 10 words chart\"><p>Authors: Estudante 2200723, Estudante 2203845</p><p>Created: $DATA</p></body></html>"
-    echo $html>$RESULT".html"
-    echo $(ls -l $RESULT".dat")
-    echo $(ls -l $RESULT".png")
-    echo $(ls -l $RESULT".html")
+    html="<!DOCTYPE html><html lang=\"en\"><head> <meta charset=\"UTF-8\"> <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\"> <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"> <title>Top Words</title></head><body> <h1>Top $word_stats_top Words - '${file}' </h1> <img src=\"$result.png\" alt=\"Top $word_stats_top words chart\"><p>Authors: Estudante 2200723, Estudante 2203845<br>Created: $date</p></body></html>"
+    echo $html>$result".html"
+    echo $(ls -l $result".dat")
+    echo $(ls -l $result".png")
+    echo $(ls -l $result".html")
+    display $result".png"
 fi
 
-if [[ "$MODO" =~ [t|T] ]]; then
+if [[ "$mode" =~ [t|T] ]]; then
 
-    if [ -z $WORD_STATS_TOP ]; then
-        echo "Environment variable 'WORD_STATS_TOP' is empty (using default 10)"
-        WORD_STATS_TOP=10
+    if [ -z $word_stats_top ]; then
+        echo "Environment variable 'word_stats_top' is empty (using default 10)"
+        word_stats_top=10
     # !! https://stackoverflow.com/questions/806906/how-do-i-test-if-a-variable-is-a-number-in-bash
-    elif [[ $WORD_STATS_TOP =~ ^[1-9]+[0]*$ ]]; then
-        echo "WORD_STATS_TOP=$WORD_STATS_TOP"
+    elif [[ $word_stats_top =~ ^[1-9]+[0]*$ ]]; then
+        echo "word_stats_top=$word_stats_top"
     else
-        echo "'$WORD_STATS_TOP' not a number (using default 10)"
-        WORD_STATS_TOP=10
+        echo "'$word_stats_top' not a number (using default 10)"
+        word_stats_top=10
     fi
 
-    CONTENT=$(echo "$CONTENT" | head -n $WORD_STATS_TOP)
+    content=$(echo "$content" | head -n $word_stats_top)
 
-    RESULT="results---"${FILE::-3}"txt"
+    result="results---"${file::-3}"txt"
     # save content output on a file
-    echo "$CONTENT" >$RESULT
-    echo $(ls -l $RESULT)~12
+    echo "$content" >$result
+    echo $(ls -l $result)~12
     echo "-------------------------------------"
-    echo "# TOP $WORD_STATS_TOP elements"
-    cat -n $RESULT
+    echo "# TOP $word_stats_top elements"
+    cat -n $result
     echo "-------------------------------------"
 fi
