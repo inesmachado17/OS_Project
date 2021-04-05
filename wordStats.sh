@@ -46,6 +46,10 @@ function check_stop_words_file() {
     fi
 }
 
+function select_lines_from_str() {
+    content=$(echo "$1" | head -n $2)
+}
+
 # Global variables
 lang_file="en.stop_words.txt"
 lang_opt="en" # not override the global lang variable
@@ -144,7 +148,8 @@ if [[ "$mode" =~ [p|P] ]]; then
 
     #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
     result="results---"${file::-4}
-    content=$(echo "$content" | head -n $WORD_STATS_TOP)
+
+    select_lines_from_str "$content" "$WORD_STATS_TOP"
 
     # save content output on a file
     echo "$content" >$result".dat"
@@ -200,11 +205,13 @@ if [[ "$mode" =~ [t|T] ]]; then
 
     check_word_stats_top
 
-    content=$(echo "$content" | head -n $WORD_STATS_TOP)
+    select_lines_from_str "$content" "$WORD_STATS_TOP"
 
-    result="results---"${file::-3}"txt"
+    result="results---"${file::-4}".txt"
+
     # save content output on a file
     echo "$content" >$result
+
     display_msg "$(ls -l $result)"
     display_msg "-------------------------------------"
     display_msg "# TOP $WORD_STATS_TOP elements"
