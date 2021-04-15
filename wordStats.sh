@@ -1,4 +1,4 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
 #
 # Functions
@@ -29,20 +29,22 @@ function check_word_stats_top() {
     fi
 }
 function check_language() {
+    if [[ -n $1 ]]; then
+        lang_opt=$(echo $1 | tr "A-Z" "a-z")
 
-    lang_opt=$(echo $1 | tr "A-Z" "a-z")
-
-    if [[ ! "$lang_opt" =~ ^(pt|en)$ ]]; then
-        display_error_msg_and_exit "'$lang_opt' language not recognized\nChoose 'en' or 'pt'"
+        if [[ ! "$lang_opt" =~ ^(pt|en)$ ]]; then
+            display_error_msg_and_exit "'$lang_opt' language not recognized\nChoose 'en' or 'pt'"
+        fi
     fi
 }
+
 function check_stop_words_file() {
     if [[ $lang_opt != 'en' ]]; then
-        lang_file=$lang_opt".stop_words.txt"
+        lang_file="StopWords/"$lang_opt".stop_words.txt"
+    fi
 
-        if [ ! -f $lang_file ]; then
-            display_error_msg_and_exit "Can not find related stop words file for selected language"
-        fi
+    if [ ! -f $lang_file ]; then
+        display_error_msg_and_exit "Can not find related stop words file for selected language"
     fi
 }
 
@@ -51,7 +53,7 @@ function select_lines_from_str() {
 }
 
 # Global variables
-lang_file="en.stop_words.txt"
+lang_file="StopWords/en.stop_words.txt"
 lang_opt="en" # not override the global lang variable
 mode=$1
 file=$2
@@ -106,7 +108,7 @@ if [[ "$mode" =~ [cpt] ]]; then
 
     content=$(echo "$content" | grep -Evi "^($stop_words_content)$")
 
-    display_msg "StopWords file '$lang_opt': 'StopWords/$lang_file' ($(wc -w $lang_file | cut -d' ' -f1) words)"
+    display_msg "StopWords file '$lang_opt': '$lang_file' ($(wc -w $lang_file | cut -d' ' -f1) words)"
     display_msg "STOP WORDS will be filtered out"
 else
     display_msg "STOP WORDS will be counted"
@@ -140,6 +142,8 @@ if [[ "$mode" =~ [c|C] ]]; then
     display_msg "$(ls -l $result)"
 
     display_msg "$(wc -w $result | cut -d' ' -f1) distinct words"
+
+    exit 0
 fi
 
 if [[ "$mode" =~ [p|P] ]]; then
@@ -199,6 +203,8 @@ EOF
     display_msg "$(ls -l $result".html")"
 
     display $result".png"
+
+    exit 0
 fi
 
 if [[ "$mode" =~ [t|T] ]]; then
@@ -217,4 +223,6 @@ if [[ "$mode" =~ [t|T] ]]; then
     display_msg "# TOP $WORD_STATS_TOP elements"
     cat -n $result
     display_msg "-------------------------------------"
+
+    exit 0
 fi
