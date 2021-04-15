@@ -148,6 +148,11 @@ fi
 
 if [[ "$mode" =~ [p|P] ]]; then
 
+    # Command gnuplot availability
+    if [[ -z "$(which gnuplot)" ]]; then
+        display_error_msg_and_exit "gnuplot: command not found"
+    fi
+
     check_word_stats_top
 
     #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
