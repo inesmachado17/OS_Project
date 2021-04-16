@@ -46,6 +46,7 @@ function check_stop_words_file() {
     if [ ! -f $lang_file ]; then
         display_error_msg_and_exit "Can not find related stop words file for selected language"
     fi
+
 }
 
 function select_lines_from_str() {
@@ -58,11 +59,8 @@ lang_opt="en" # not override the global lang variable
 mode=$1
 file=$2
 content=""
-
-# Command pdftotext availability
-if [[ -z "$(which pdftotext)" ]]; then
-    display_error_msg_and_exit "pdftotext: command not found"
-fi
+pdftotext_error=""
+file_name=""
 
 # Parameter check
 if [ $# -ne 2 ] && [ $# -ne 3 ]; then
@@ -73,16 +71,31 @@ elif [[ ! -f "$file" ]]; then
     display_error_msg_and_exit "can't find file '$file'"
 fi
 
-# Check file type and content read
+# Check file type and read content
 if [[ $(file "$file" | cut -d':' -f 2 | grep -i text) ]]; then
     content=$(cat $file)
     display_msg "'$file': TEXT file"
 elif [[ $(file "$file" | cut -d':' -f 2 | grep -i pdf) ]]; then
+
+    # Command pdftotext availability
+    if [[ -z "$(which pdftotext)" ]]; then
+        display_error_msg_and_exit "pdftotext: command not found"
+    fi
+
+    pdftotext_error=$(pdftotext $file 2>&1)
+
+    if [[ -n $pdftotext_error ]]; then
+        display_error_msg_and_exit "pdftotext command failure: $pdftotext_error"
+    fi
+
     content=$(pdftotext -nopgbrk $file -)
+
     display_msg "'$file': PDF file"
 else
     display_error_msg_and_exit "'$file' file type not supported"
 fi
+#get filename from file path
+file_name=$(echo "$file" | rev | cut -d'/' -f 1 | rev)
 
 display_info_msg "Processing '$file'"
 
@@ -122,7 +135,7 @@ content=$(echo "$content" | sort | uniq -c | sort -nr)
 #
 
 if [[ "$mode" =~ [c|C] ]]; then
-    result="results---"${file::-4}".txt"
+    result="results---"${file_name::-4}".txt"
 
     # save content output on a file
     echo "$content" >$result
@@ -155,8 +168,7 @@ if [[ "$mode" =~ [p|P] ]]; then
 
     check_word_stats_top
 
-    #https://stackoverflow.com/questions/22869025/gnuplot-change-value-of-x-axis
-    result="results---"${file::-4}
+    result="results---"${file_name::-4}
 
     select_lines_from_str "$content" "$WORD_STATS_TOP"
 
@@ -218,7 +230,7 @@ if [[ "$mode" =~ [t|T] ]]; then
 
     select_lines_from_str "$content" "$WORD_STATS_TOP"
 
-    result="results---"${file::-4}".txt"
+    result="results---"${file_name::-4}".txt"
 
     # save content output on a file
     echo "$content" >$result
